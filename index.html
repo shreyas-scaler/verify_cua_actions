@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Baseline Action Verifier</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: monospace; background: #111827; color: #e5e7eb; overflow: hidden; width: 1280px; height: 960px; position: relative; }
+
+  #hud {
+    position: absolute; top: 4px; left: 4px; right: 4px;
+    background: rgba(0,0,0,0.7); border: 1px solid #374151; border-radius: 4px;
+    padding: 4px 8px; font-size: 10px; z-index: 100; display: flex; gap: 12px; align-items: center;
+  }
+  #hud .pass { color: #22c55e; }
+  #hud .pending { color: #6b7280; }
+  #hud #mouse-pos { margin-left: auto; color: #4b5563; }
+
+  .target {
+    position: absolute; border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 7px; font-weight: 700; letter-spacing: 0.03em;
+    user-select: none; cursor: default;
+    transition: outline-color 0.15s;
+    outline: 1px solid transparent;
+  }
+  .target.hit { outline-color: #22c55e; background: rgba(34,197,94,0.2) !important; }
+  .target.miss { outline-color: #ef4444; }
+
+  /* Labels next to targets */
+  .label {
+    position: absolute; font-size: 8px; color: #4b5563;
+    white-space: nowrap; pointer-events: none;
+  }
+
+  /* Tiny input for type test */
+  #input-type {
+    position: absolute; width: 80px; height: 14px; padding: 0 2px;
+    border: 1px solid #4b5563; background: #1f2937; color: #e5e7eb;
+    font-size: 9px; font-family: monospace; outline: none; border-radius: 1px;
+  }
+  #input-type:focus { border-color: #60a5fa; }
+
+  /* Tiny key capture zone */
+  .key-target {
+    position: absolute; width: 40px; height: 14px;
+    border: 1px solid #4b5563; background: #1f2937; border-radius: 1px;
+    font-size: 7px; color: #6b7280; display: flex; align-items: center;
+    justify-content: center; outline: none; cursor: default;
+  }
+  .key-target:focus { border-color: #60a5fa; color: #e5e7eb; }
+  .key-target.hit { border-color: #22c55e; background: rgba(34,197,94,0.15); }
+
+  /* Scroll area: small */
+  #scroll-zone {
+    position: absolute; width: 60px; height: 40px; overflow: auto;
+    border: 1px solid #4b5563; background: #0f172a; border-radius: 1px;
+  }
+  #scroll-zone.hit { border-color: #22c55e; }
+  #scroll-zone .inner { height: 300px; padding: 2px; font-size: 7px; color: #4b5563; }
+
+  /* Drag source and target: tiny */
+  .drag-src {
+    position: absolute; width: 16px; height: 16px; background: #3b82f6;
+    border-radius: 2px; cursor: grab; font-size: 7px; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drag-dest {
+    position: absolute; width: 20px; height: 20px; border: 1px dashed #22c55e;
+    border-radius: 2px; font-size: 6px; color: #22c55e;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drag-dest.hit { background: rgba(34,197,94,0.2); }
+
+  /* File upload: tiny clickable */
+  #upload-label {
+    position: absolute; width: 50px; height: 14px; cursor: pointer;
+    border: 1px solid #4b5563; background: #1f2937; border-radius: 1px;
+    font-size: 7px; color: #6b7280; display: flex; align-items: center;
+    justify-content: center;
+  }
+  #upload-label.hit { border-color: #22c55e; color: #22c55e; }
+
+  /* History test */
+  #btn-pushstate {
+    position: absolute; width: 40px; height: 14px; cursor: pointer;
+    border: 1px solid #4b5563; background: #1f2937; border-radius: 1px;
+    font-size: 7px; color: #6b7280; display: flex; align-items: center;
+    justify-content: center;
+  }
+  #btn-pushstate.hit { border-color: #22c55e; color: #22c55e; }
+
+  /* Event log at bottom */
+  #event-log {
+    position: absolute; bottom: 4px; left: 4px; right: 4px; height: 80px;
+    background: rgba(0,0,0,0.7); border: 1px solid #374151; border-radius: 4px;
+    padding: 4px 6px; font-size: 9px; overflow-y: auto; z-index: 100;
+  }
+  #event-log .e { margin-bottom: 1px; }
+  #event-log .ts { color: #4b5563; }
+  #event-log .act { color: #60a5fa; }
+  #event-log .det { color: #d1d5db; }
+  #event-log .coord { color: #fbbf24; }
+
+  /* Coordinate grid overlay */
+  #grid-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none; z-index: 50; opacity: 0.08;
+  }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <span>ACTION VERIFIER</span>
+  <span>| <span class="pass" id="hud-pass">0</span> pass</span>
+  <span><span class="pending" id="hud-pending">0</span> pending</span>
+  <span id="mouse-pos">x:- y:-</span>
+</div>
+
+<!--
+  All targets are 16x16px or smaller, placed at exact known positions.
+  The coords shown in labels are the CENTER of each target (what the model should aim for).
+-->
+
+<!-- 1. LEFT CLICK: 16x16 at (200, 150) => center (208, 158) -->
+<div class="target" id="t-click" style="left:200px;top:150px;width:16px;height:16px;background:#2563eb;">L</div>
+<div class="label" style="left:220px;top:150px;">left click (208,158)</div>
+
+<!-- 2. DOUBLE CLICK: 16x16 at (200, 200) => center (208, 208) -->
+<div class="target" id="t-dblclick" style="left:200px;top:200px;width:16px;height:16px;background:#7c3aed;">2x</div>
+<div class="label" style="left:220px;top:200px;">dbl click (208,208)</div>
+
+<!-- 3. RIGHT CLICK: 16x16 at (200, 250) => center (208, 258) -->
+<div class="target" id="t-rightclick" style="left:200px;top:250px;width:16px;height:16px;background:#dc2626;">R</div>
+<div class="label" style="left:220px;top:250px;">right click (208,258)</div>
+
+<!-- 4. MOUSE MOVE / HOVER: 16x16 at (200, 300) => center (208, 308) -->
+<div class="target" id="t-hover" style="left:200px;top:300px;width:16px;height:16px;background:#0891b2;">H</div>
+<div class="label" style="left:220px;top:300px;">hover (208,308)</div>
+
+<!-- 5. MOUSE DOWN / UP: 16x16 at (200, 350) => center (208, 358) -->
+<div class="target" id="t-mousedownup" style="left:200px;top:350px;width:16px;height:16px;background:#ca8a04;">D</div>
+<div class="label" style="left:220px;top:350px;">mousedown/up (208,358)</div>
+
+<!-- 6. TYPE: input at (500, 150) -->
+<input id="input-type" style="left:500px;top:150px;" placeholder="type here" />
+<div class="label" style="left:585px;top:150px;">type (540,157)</div>
+
+<!-- 7. PRESS: key zone at (500, 200) -->
+<div class="key-target" id="t-press" tabindex="0" style="left:500px;top:200px;">press</div>
+<div class="label" style="left:545px;top:200px;">press key (520,207)</div>
+
+<!-- 8. KEY DOWN / UP: key zone at (500, 250) -->
+<div class="key-target" id="t-keydownup" tabindex="0" style="left:500px;top:250px;">hold</div>
+<div class="label" style="left:545px;top:250px;">key dn/up (520,257)</div>
+
+<!-- 9. SCROLL: small scrollable at (500, 300) -->
+<div id="scroll-zone" style="left:500px;top:300px;">
+  <div class="inner">
+    S1<br>S2<br>S3<br>S4<br>S5<br>S6<br>S7<br>S8<br>
+    S9<br>S10<br>S11<br>S12<br>S13<br>S14<br>S15<br>END
+  </div>
+</div>
+<div class="label" style="left:565px;top:300px;">scroll (530,320)</div>
+
+<!-- 10. DRAG: source 16x16 at (800, 150), dest 20x20 at (900, 150) -->
+<div class="drag-src" id="drag-src" style="left:800px;top:150px;">D</div>
+<div class="drag-dest" id="drag-dest" style="left:900px;top:150px;">T</div>
+<div class="label" style="left:800px;top:140px;">drag (808,158) -> (910,160)</div>
+
+<!-- 11. GOTO (just logs the click, actual nav would leave page) -->
+<div class="target" id="t-goto" style="left:800px;top:200px;width:16px;height:16px;background:#065f46;">G</div>
+<div class="label" style="left:820px;top:200px;">goto (808,208)</div>
+
+<!-- 12. BACK/FORWARD: pushstate button -->
+<div id="btn-pushstate" style="left:800px;top:250px;">push</div>
+<div class="label" style="left:845px;top:250px;">back/fwd (820,257)</div>
+
+<!-- 13. UPLOAD FILE -->
+<label id="upload-label" style="left:800px;top:300px;">
+  <input type="file" id="input-upload" style="display:none;" />
+  upload
+</label>
+<div class="label" style="left:855px;top:300px;">upload (825,307)</div>
+
+<div id="event-log"></div>
+
+<script>
+  const verified = {};
+  const ALL_TESTS = [
+    'click','dblclick','rightclick','hover','mousedownup',
+    'type','press','keydownup','scroll','drag',
+    'goto','backfwd','upload'
+  ];
+
+  function ts() { return new Date().toISOString().split('T')[1].slice(0,12); }
+
+  function logEvent(action, detail) {
+    const el = document.getElementById('event-log');
+    const d = document.createElement('div');
+    d.className = 'e';
+    d.innerHTML = `<span class="ts">${ts()}</span> <span class="act">[${action}]</span> <span class="det">${detail}</span>`;
+    el.prepend(d);
+  }
+
+  function markPass(testId, el) {
+    if (!verified[testId]) {
+      verified[testId] = true;
+      if (el) el.classList.add('hit');
+      updateHud();
+    }
+  }
+
+  function updateHud() {
+    const pass = Object.keys(verified).length;
+    document.getElementById('hud-pass').textContent = pass;
+    document.getElementById('hud-pending').textContent = ALL_TESTS.length - pass;
+  }
+  updateHud();
+
+  // Mouse position tracker
+  document.addEventListener('mousemove', (e) => {
+    document.getElementById('mouse-pos').textContent = `x:${e.clientX} y:${e.clientY}`;
+  });
+
+  // 1. LEFT CLICK
+  document.getElementById('t-click').addEventListener('click', (e) => {
+    logEvent('click', `left click at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    markPass('click', e.currentTarget);
+  });
+
+  // 2. DOUBLE CLICK
+  document.getElementById('t-dblclick').addEventListener('dblclick', (e) => {
+    logEvent('dblclick', `dblclick at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    markPass('dblclick', e.currentTarget);
+  });
+
+  // 3. RIGHT CLICK
+  document.getElementById('t-rightclick').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    logEvent('rightclick', `right click at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    markPass('rightclick', e.currentTarget);
+  });
+
+  // 4. HOVER
+  document.getElementById('t-hover').addEventListener('mouseenter', (e) => {
+    logEvent('hover', `mouseenter at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    markPass('hover', e.currentTarget);
+  });
+
+  // 5. MOUSE DOWN / UP
+  const tMDU = document.getElementById('t-mousedownup');
+  let gotDown = false;
+  tMDU.addEventListener('mousedown', (e) => {
+    gotDown = true;
+    logEvent('mouse_down', `mousedown at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+  });
+  tMDU.addEventListener('mouseup', (e) => {
+    if (gotDown) {
+      logEvent('mouse_up', `mouseup at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+      markPass('mousedownup', e.currentTarget);
+      gotDown = false;
+    }
+  });
+
+  // 6. TYPE
+  const inp = document.getElementById('input-type');
+  inp.addEventListener('input', () => {
+    logEvent('type', `value="${inp.value}"`);
+    markPass('type', inp);
+  });
+
+  // 7. PRESS
+  const tPress = document.getElementById('t-press');
+  tPress.addEventListener('keydown', (e) => {
+    const parts = [];
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    parts.push(e.key);
+    logEvent('press', `${parts.join('+')} (code:${e.code})`);
+    markPass('press', tPress);
+  });
+
+  // 8. KEY DOWN / UP
+  const tKDU = document.getElementById('t-keydownup');
+  let kduDown = false;
+  tKDU.addEventListener('keydown', (e) => {
+    kduDown = true;
+    logEvent('key_down', `down: ${e.key} (code:${e.code})`);
+  });
+  tKDU.addEventListener('keyup', (e) => {
+    if (kduDown) {
+      logEvent('key_up', `up: ${e.key} (code:${e.code})`);
+      markPass('keydownup', tKDU);
+      kduDown = false;
+    }
+  });
+
+  // 9. SCROLL
+  const scrollZone = document.getElementById('scroll-zone');
+  scrollZone.addEventListener('scroll', () => {
+    logEvent('scroll', `scrollTop=${Math.round(scrollZone.scrollTop)}`);
+    markPass('scroll', scrollZone);
+  });
+
+  // 10. DRAG
+  const dragSrc = document.getElementById('drag-src');
+  const dragDest = document.getElementById('drag-dest');
+  const dragArea = document.body;
+  let isDragging = false, dox = 0, doy = 0;
+
+  dragSrc.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    const r = dragSrc.getBoundingClientRect();
+    dox = e.clientX - r.left;
+    doy = e.clientY - r.top;
+    logEvent('drag', `start at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    dragSrc.style.left = (e.clientX - dox) + 'px';
+    dragSrc.style.top = (e.clientY - doy) + 'px';
+  });
+  document.addEventListener('mouseup', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    logEvent('drag', `end at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    // Check if dropped near target
+    const dr = dragDest.getBoundingClientRect();
+    if (e.clientX >= dr.left && e.clientX <= dr.right && e.clientY >= dr.top && e.clientY <= dr.bottom) {
+      markPass('drag', dragDest);
+      logEvent('drag', 'dropped on target!');
+    }
+  });
+
+  // 11. GOTO
+  document.getElementById('t-goto').addEventListener('click', (e) => {
+    logEvent('goto', `click at <span class="coord">(${e.clientX},${e.clientY})</span> (nav would leave page)`);
+    markPass('goto', e.currentTarget);
+  });
+
+  // 12. BACK / FORWARD
+  let histIdx = 0;
+  document.getElementById('btn-pushstate').addEventListener('click', () => {
+    histIdx++;
+    history.pushState({ i: histIdx }, '', `?s=${histIdx}`);
+    logEvent('back/fwd', `pushState #${histIdx}`);
+  });
+  window.addEventListener('popstate', (e) => {
+    logEvent('back/fwd', `popstate: ${JSON.stringify(e.state)} url:${location.search}`);
+    markPass('backfwd', document.getElementById('btn-pushstate'));
+  });
+
+  // 13. UPLOAD
+  document.getElementById('input-upload').addEventListener('change', (e) => {
+    const names = Array.from(e.target.files).map(f => f.name).join(', ');
+    logEvent('upload', `files: ${names}`);
+    markPass('upload', document.getElementById('upload-label'));
+  });
+</script>
+</body>
+</html>
