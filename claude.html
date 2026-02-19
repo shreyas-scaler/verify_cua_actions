@@ -163,9 +163,6 @@
 <div class="drag-dest" id="drag-dest" style="left:920px;top:120px;">T</div>
 <div class="label" style="left:800px;top:110px;">left_click_drag (808,128) -> (930,130)</div>
 
-<!-- 13. wait: auto-verified after 2s -->
-<div class="target" id="t-wait" style="left:800px;top:160px;width:16px;height:16px;background:#78716c;">W</div>
-<div class="label" style="left:820px;top:160px;">wait (auto 2s)</div>
 
 <!-- 14. upload_file -->
 <label id="upload-label" style="left:800px;top:200px;">
@@ -186,7 +183,7 @@
     'click','rightclick','dblclick','tripleclick','midclick',
     'hover','mousedownup',
     'type','key','holdkey','scroll',
-    'drag','wait','upload'
+    'drag','upload'
   ];
 
   function ts() { return new Date().toISOString().split('T')[1].slice(0,12); }
@@ -353,13 +350,7 @@
     }
   });
 
-  // 13. wait — auto-pass after 2s
-  setTimeout(() => {
-    logEvent('wait', 'page alive after 2s');
-    markPass('wait', document.getElementById('t-wait'));
-  }, 2000);
-
-  // 14. upload_file
+  // 13. upload_file
   document.getElementById('input-upload').addEventListener('change', (e) => {
     const names = Array.from(e.target.files).map(f => f.name).join(', ');
     logEvent('upload_file', `files: ${names}`);
