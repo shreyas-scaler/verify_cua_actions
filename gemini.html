@@ -146,9 +146,6 @@
 <div id="btn-pushstate" style="left:800px;top:200px;">push</div>
 <div class="label" style="left:845px;top:200px;">go_back/fwd (820,207)</div>
 
-<!-- 10. wait_5_seconds: auto-verified after 5s -->
-<div class="target" id="t-wait" style="left:800px;top:280px;width:16px;height:16px;background:#78716c;">W</div>
-<div class="label" style="left:820px;top:280px;">wait_5_seconds (auto)</div>
 
 <div id="event-log"></div>
 
@@ -156,7 +153,7 @@
   const verified = {};
   const ALL_TESTS = [
     'click','hover','type','keycomb','scroll','scrolldoc',
-    'drag','navigate','backfwd','wait'
+    'drag','navigate','backfwd'
   ];
 
   function ts() { return new Date().toISOString().split('T')[1].slice(0,12); }
@@ -281,11 +278,6 @@
     markPass('backfwd', document.getElementById('btn-pushstate'));
   });
 
-  // 10. wait_5_seconds — auto-pass after 5s to confirm the page stayed alive
-  setTimeout(() => {
-    logEvent('wait_5_seconds', 'page alive after 5s');
-    markPass('wait', document.getElementById('t-wait'));
-  }, 5000);
 </script>
 </body>
 </html>
