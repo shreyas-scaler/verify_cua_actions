@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Claude Action Verifier</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: monospace; background: #111827; color: #e5e7eb; overflow: hidden; width: 1280px; height: 960px; position: relative; }
+
+  #hud {
+    position: absolute; top: 4px; left: 4px; right: 4px;
+    background: rgba(0,0,0,0.7); border: 1px solid #374151; border-radius: 4px;
+    padding: 4px 8px; font-size: 10px; z-index: 100; display: flex; gap: 12px; align-items: center;
+  }
+  #hud .pass { color: #22c55e; }
+  #hud .pending { color: #6b7280; }
+  #hud #mouse-pos { margin-left: auto; color: #4b5563; }
+
+  .target {
+    position: absolute; border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 7px; font-weight: 700; letter-spacing: 0.03em;
+    user-select: none; cursor: default;
+    transition: outline-color 0.15s;
+    outline: 1px solid transparent;
+  }
+  .target.hit { outline-color: #22c55e; background: rgba(34,197,94,0.2) !important; }
+
+  .label {
+    position: absolute; font-size: 8px; color: #4b5563;
+    white-space: nowrap; pointer-events: none;
+  }
+
+  #input-type {
+    position: absolute; width: 80px; height: 14px; padding: 0 2px;
+    border: 1px solid #4b5563; background: #1f2937; color: #e5e7eb;
+    font-size: 9px; font-family: monospace; outline: none; border-radius: 1px;
+  }
+  #input-type:focus { border-color: #60a5fa; }
+  #input-type.hit { border-color: #22c55e; }
+
+  .key-target {
+    position: absolute; width: 40px; height: 14px;
+    border: 1px solid #4b5563; background: #1f2937; border-radius: 1px;
+    font-size: 7px; color: #6b7280; display: flex; align-items: center;
+    justify-content: center; outline: none; cursor: default;
+  }
+  .key-target:focus { border-color: #60a5fa; color: #e5e7eb; }
+  .key-target.hit { border-color: #22c55e; background: rgba(34,197,94,0.15); }
+
+  #scroll-zone {
+    position: absolute; width: 60px; height: 40px; overflow: auto;
+    border: 1px solid #4b5563; background: #0f172a; border-radius: 1px;
+  }
+  #scroll-zone.hit { border-color: #22c55e; }
+  #scroll-zone .inner { height: 300px; padding: 2px; font-size: 7px; color: #4b5563; }
+
+  .drag-src {
+    position: absolute; width: 16px; height: 16px; background: #3b82f6;
+    border-radius: 2px; cursor: grab; font-size: 7px; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drag-dest {
+    position: absolute; width: 20px; height: 20px; border: 1px dashed #22c55e;
+    border-radius: 2px; font-size: 6px; color: #22c55e;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drag-dest.hit { background: rgba(34,197,94,0.2); }
+
+  #upload-label {
+    position: absolute; width: 50px; height: 14px; cursor: pointer;
+    border: 1px solid #4b5563; background: #1f2937; border-radius: 1px;
+    font-size: 7px; color: #6b7280; display: flex; align-items: center;
+    justify-content: center;
+  }
+  #upload-label.hit { border-color: #22c55e; color: #22c55e; }
+
+  #event-log {
+    position: absolute; bottom: 4px; left: 4px; right: 4px; height: 80px;
+    background: rgba(0,0,0,0.7); border: 1px solid #374151; border-radius: 4px;
+    padding: 4px 6px; font-size: 9px; overflow-y: auto; z-index: 100;
+  }
+  #event-log .e { margin-bottom: 1px; }
+  #event-log .ts { color: #4b5563; }
+  #event-log .act { color: #60a5fa; }
+  #event-log .det { color: #d1d5db; }
+  #event-log .coord { color: #fbbf24; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <span>CLAUDE ACTION VERIFIER</span>
+  <span>| <span class="pass" id="hud-pass">0</span> pass</span>
+  <span><span class="pending" id="hud-pending">0</span> pending</span>
+  <span id="mouse-pos">x:- y:-</span>
+</div>
+
+<!--
+  Claude supported actions:
+  left_click, right_click, double_click, triple_click, middle_click,
+  mouse_move, left_click_drag, left_mouse_down, left_mouse_up,
+  key, type, scroll, hold_key, wait, screenshot, zoom, cursor_position
+-->
+
+<!-- COL 1: Mouse actions -->
+
+<!-- 1. left_click: 16x16 at (200, 120) -->
+<div class="target" id="t-click" style="left:200px;top:120px;width:16px;height:16px;background:#2563eb;">L</div>
+<div class="label" style="left:220px;top:120px;">left_click (208,128)</div>
+
+<!-- 2. right_click: 16x16 at (200, 160) -->
+<div class="target" id="t-rightclick" style="left:200px;top:160px;width:16px;height:16px;background:#dc2626;">R</div>
+<div class="label" style="left:220px;top:160px;">right_click (208,168)</div>
+
+<!-- 3. double_click: 16x16 at (200, 200) -->
+<div class="target" id="t-dblclick" style="left:200px;top:200px;width:16px;height:16px;background:#7c3aed;">2x</div>
+<div class="label" style="left:220px;top:200px;">double_click (208,208)</div>
+
+<!-- 4. triple_click: 16x16 at (200, 240) -->
+<div class="target" id="t-tripleclick" style="left:200px;top:240px;width:16px;height:16px;background:#9333ea;">3x</div>
+<div class="label" style="left:220px;top:240px;">triple_click (208,248)</div>
+
+<!-- 5. middle_click: 16x16 at (200, 280) -->
+<div class="target" id="t-midclick" style="left:200px;top:280px;width:16px;height:16px;background:#ea580c;">M</div>
+<div class="label" style="left:220px;top:280px;">middle_click (208,288)</div>
+
+<!-- 6. mouse_move: 16x16 at (200, 320) -->
+<div class="target" id="t-hover" style="left:200px;top:320px;width:16px;height:16px;background:#0891b2;">H</div>
+<div class="label" style="left:220px;top:320px;">mouse_move (208,328)</div>
+
+<!-- 7. left_mouse_down / left_mouse_up: 16x16 at (200, 360) -->
+<div class="target" id="t-mousedownup" style="left:200px;top:360px;width:16px;height:16px;background:#ca8a04;">D</div>
+<div class="label" style="left:220px;top:360px;">mouse_down/up (208,368)</div>
+
+<!-- COL 2: Keyboard + type -->
+
+<!-- 8. type: input at (500, 120) -->
+<input id="input-type" style="left:500px;top:120px;" placeholder="type here" />
+<div class="label" style="left:585px;top:120px;">type (540,127)</div>
+
+<!-- 9. key: key zone at (500, 160) -->
+<div class="key-target" id="t-key" tabindex="0" style="left:500px;top:160px;">key</div>
+<div class="label" style="left:545px;top:160px;">key (520,167)</div>
+
+<!-- 10. hold_key: key zone at (500, 200) -->
+<div class="key-target" id="t-holdkey" tabindex="0" style="left:500px;top:200px;">hold</div>
+<div class="label" style="left:545px;top:200px;">hold_key (520,207)</div>
+
+<!-- 11. scroll: small scrollable at (500, 260) -->
+<div id="scroll-zone" style="left:500px;top:260px;">
+  <div class="inner">
+    S1<br>S2<br>S3<br>S4<br>S5<br>S6<br>S7<br>S8<br>
+    S9<br>S10<br>S11<br>S12<br>S13<br>S14<br>S15<br>END
+  </div>
+</div>
+<div class="label" style="left:565px;top:260px;">scroll (530,280)</div>
+
+<!-- COL 3: Drag, wait, upload -->
+
+<!-- 12. left_click_drag: source at (800, 120), dest at (920, 120) -->
+<div class="drag-src" id="drag-src" style="left:800px;top:120px;">D</div>
+<div class="drag-dest" id="drag-dest" style="left:920px;top:120px;">T</div>
+<div class="label" style="left:800px;top:110px;">left_click_drag (808,128) -> (930,130)</div>
+
+<!-- 13. wait: auto-verified after 2s -->
+<div class="target" id="t-wait" style="left:800px;top:160px;width:16px;height:16px;background:#78716c;">W</div>
+<div class="label" style="left:820px;top:160px;">wait (auto 2s)</div>
+
+<!-- 14. upload_file -->
+<label id="upload-label" style="left:800px;top:200px;">
+  <input type="file" id="input-upload" style="display:none;" />
+  upload
+</label>
+<div class="label" style="left:855px;top:200px;">upload_file (825,207)</div>
+
+<!-- 15. screenshot / zoom / cursor_position -->
+<div class="target" id="t-serverside" style="left:800px;top:240px;width:16px;height:16px;background:#374151;">S</div>
+<div class="label" style="left:820px;top:240px;">screenshot/zoom/cursor_pos (server-side)</div>
+
+<div id="event-log"></div>
+
+<script>
+  const verified = {};
+  const ALL_TESTS = [
+    'click','rightclick','dblclick','tripleclick','midclick',
+    'hover','mousedownup',
+    'type','key','holdkey','scroll',
+    'drag','wait','upload'
+  ];
+
+  function ts() { return new Date().toISOString().split('T')[1].slice(0,12); }
+
+  function logEvent(action, detail) {
+    const el = document.getElementById('event-log');
+    const d = document.createElement('div');
+    d.className = 'e';
+    d.innerHTML = `<span class="ts">${ts()}</span> <span class="act">[${action}]</span> <span class="det">${detail}</span>`;
+    el.prepend(d);
+  }
+
+  function markPass(testId, el) {
+    if (!verified[testId]) {
+      verified[testId] = true;
+      if (el) el.classList.add('hit');
+      updateHud();
+    }
+  }
+
+  function updateHud() {
+    const pass = Object.keys(verified).length;
+    document.getElementById('hud-pass').textContent = pass;
+    document.getElementById('hud-pending').textContent = ALL_TESTS.length - pass;
+  }
+  updateHud();
+
+  document.addEventListener('mousemove', (e) => {
+    document.getElementById('mouse-pos').textContent = `x:${e.clientX} y:${e.clientY}`;
+  });
+
+  // 1. left_click
+  document.getElementById('t-click').addEventListener('click', (e) => {
+    logEvent('left_click', `click at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    markPass('click', e.currentTarget);
+  });
+
+  // 2. right_click
+  document.getElementById('t-rightclick').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    logEvent('right_click', `contextmenu at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    markPass('rightclick', e.currentTarget);
+  });
+
+  // 3. double_click
+  document.getElementById('t-dblclick').addEventListener('dblclick', (e) => {
+    logEvent('double_click', `dblclick at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    markPass('dblclick', e.currentTarget);
+  });
+
+  // 4. triple_click (detect 3 rapid clicks)
+  let tripleCount = 0, tripleTimer = null;
+  document.getElementById('t-tripleclick').addEventListener('click', (e) => {
+    tripleCount++;
+    clearTimeout(tripleTimer);
+    tripleTimer = setTimeout(() => { tripleCount = 0; }, 500);
+    if (tripleCount >= 3) {
+      logEvent('triple_click', `triple click at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+      markPass('tripleclick', e.currentTarget);
+      tripleCount = 0;
+    }
+  });
+
+  // 5. middle_click
+  document.getElementById('t-midclick').addEventListener('auxclick', (e) => {
+    if (e.button === 1) {
+      e.preventDefault();
+      logEvent('middle_click', `auxclick(button=1) at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+      markPass('midclick', e.currentTarget);
+    }
+  });
+
+  // 6. mouse_move
+  document.getElementById('t-hover').addEventListener('mouseenter', (e) => {
+    logEvent('mouse_move', `mouseenter at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    markPass('hover', e.currentTarget);
+  });
+
+  // 7. left_mouse_down / left_mouse_up
+  const tMDU = document.getElementById('t-mousedownup');
+  let gotDown = false;
+  tMDU.addEventListener('mousedown', (e) => {
+    if (e.button === 0) {
+      gotDown = true;
+      logEvent('left_mouse_down', `mousedown at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    }
+  });
+  tMDU.addEventListener('mouseup', (e) => {
+    if (gotDown && e.button === 0) {
+      logEvent('left_mouse_up', `mouseup at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+      markPass('mousedownup', e.currentTarget);
+      gotDown = false;
+    }
+  });
+
+  // 8. type
+  const inp = document.getElementById('input-type');
+  inp.addEventListener('input', () => {
+    logEvent('type', `value="${inp.value}"`);
+    markPass('type', inp);
+  });
+
+  // 9. key
+  const tKey = document.getElementById('t-key');
+  tKey.addEventListener('keydown', (e) => {
+    const parts = [];
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    parts.push(e.key);
+    logEvent('key', `${parts.join('+')} (code:${e.code})`);
+    markPass('key', tKey);
+  });
+
+  // 10. hold_key (requires keydown followed by keyup on same element)
+  const tHold = document.getElementById('t-holdkey');
+  let holdDown = false, holdKey = '';
+  tHold.addEventListener('keydown', (e) => {
+    holdDown = true;
+    holdKey = e.key;
+    logEvent('hold_key', `down: ${e.key} (code:${e.code})`);
+  });
+  tHold.addEventListener('keyup', (e) => {
+    if (holdDown) {
+      logEvent('hold_key', `up: ${e.key} (code:${e.code})`);
+      markPass('holdkey', tHold);
+      holdDown = false;
+    }
+  });
+
+  // 11. scroll
+  const scrollZone = document.getElementById('scroll-zone');
+  scrollZone.addEventListener('scroll', () => {
+    logEvent('scroll', `scrollTop=${Math.round(scrollZone.scrollTop)}`);
+    markPass('scroll', scrollZone);
+  });
+
+  // 12. left_click_drag
+  const dragSrc = document.getElementById('drag-src');
+  const dragDest = document.getElementById('drag-dest');
+  let isDragging = false, dox = 0, doy = 0;
+
+  dragSrc.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    const r = dragSrc.getBoundingClientRect();
+    dox = e.clientX - r.left;
+    doy = e.clientY - r.top;
+    logEvent('left_click_drag', `start at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    dragSrc.style.left = (e.clientX - dox) + 'px';
+    dragSrc.style.top = (e.clientY - doy) + 'px';
+  });
+  document.addEventListener('mouseup', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    logEvent('left_click_drag', `end at <span class="coord">(${e.clientX},${e.clientY})</span>`);
+    const dr = dragDest.getBoundingClientRect();
+    if (e.clientX >= dr.left && e.clientX <= dr.right && e.clientY >= dr.top && e.clientY <= dr.bottom) {
+      markPass('drag', dragDest);
+      logEvent('left_click_drag', 'dropped on target!');
+    }
+  });
+
+  // 13. wait — auto-pass after 2s
+  setTimeout(() => {
+    logEvent('wait', 'page alive after 2s');
+    markPass('wait', document.getElementById('t-wait'));
+  }, 2000);
+
+  // 14. upload_file
+  document.getElementById('input-upload').addEventListener('change', (e) => {
+    const names = Array.from(e.target.files).map(f => f.name).join(', ');
+    logEvent('upload_file', `files: ${names}`);
+    markPass('upload', document.getElementById('upload-label'));
+  });
+
+  // 15. screenshot / zoom / cursor_position are server-side only
+  // Auto-mark as noted (not testable from DOM)
+  logEvent('info', 'screenshot/zoom/cursor_position are server-side actions (not DOM-testable)');
+</script>
+</body>
+</html>
