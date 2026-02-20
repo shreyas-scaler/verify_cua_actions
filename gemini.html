@@ -106,19 +106,19 @@
 
 <!-- 1. click_at: 16x16 at (200, 150) => center (208, 158) -->
 <div class="target" id="t-click" style="left:200px;top:150px;width:16px;height:16px;background:#2563eb;">C</div>
-<div class="label" style="left:220px;top:150px;">click_at (208,158)</div>
+<div class="label" style="left:220px;top:150px;">Step 1 Click</div>
 
 <!-- 2. hover_at: 16x16 at (200, 200) => center (208, 208) -->
 <div class="target" id="t-hover" style="left:200px;top:200px;width:16px;height:16px;background:#0891b2;">H</div>
-<div class="label" style="left:220px;top:200px;">hover_at (208,208)</div>
+<div class="label" style="left:220px;top:200px;">Step 2 Hover</div>
 
 <!-- 3. type_text_at: input at (500, 150) -->
 <input id="input-type" style="left:500px;top:150px;" placeholder="type here" />
-<div class="label" style="left:585px;top:150px;">type_text_at (540,157)</div>
+<div class="label" style="left:585px;top:150px;">Step 3 Type</div>
 
 <!-- 4. key_combination: key zone at (500, 200) -->
 <div class="key-target" id="t-keycomb" tabindex="0" style="left:500px;top:200px;">keys</div>
-<div class="label" style="left:545px;top:200px;">key_combination (520,207)</div>
+<div class="label" style="left:545px;top:200px;">Step 4 Key combination</div>
 
 <!-- 5. scroll_at: small scrollable at (200, 280) -->
 <div id="scroll-zone" style="left:200px;top:280px;">
@@ -127,24 +127,24 @@
     S9<br>S10<br>S11<br>S12<br>S13<br>S14<br>S15<br>END
   </div>
 </div>
-<div class="label" style="left:265px;top:280px;">scroll_at (230,300)</div>
+<div class="label" style="left:265px;top:280px;">Step 5 scroll</div>
 
 <!-- 6. scroll_document: verified via body scroll listener -->
 <div class="target" id="t-scrolldoc" style="left:200px;top:350px;width:16px;height:16px;background:#6d28d9;">P</div>
-<div class="label" style="left:220px;top:350px;">scroll_document (PageDn)</div>
+<div class="label" style="left:220px;top:350px;">Step 6 scroll doc</div>
 
 <!-- 7. drag_and_drop: source 16x16 at (500, 280), dest 20x20 at (620, 280) -->
 <div class="drag-src" id="drag-src" style="left:500px;top:280px;">D</div>
 <div class="drag-dest" id="drag-dest" style="left:620px;top:280px;">T</div>
-<div class="label" style="left:500px;top:270px;">drag_and_drop (508,288) -> (630,290)</div>
+<div class="label" style="left:500px;top:270px;">Step 7 drag and drop</div>
 
 <!-- 8. navigate: click triggers simulated nav -->
 <div class="target" id="t-navigate" style="left:800px;top:150px;width:16px;height:16px;background:#065f46;">N</div>
-<div class="label" style="left:820px;top:150px;">navigate (808,158)</div>
+<div class="label" style="left:820px;top:150px;">Step 8 navigate</div>
 
 <!-- 9. go_back / go_forward -->
 <div id="btn-pushstate" style="left:800px;top:200px;">push</div>
-<div class="label" style="left:845px;top:200px;">go_back/fwd (820,207)</div>
+<div class="label" style="left:845px;top:200px;">Step 9 go_back/fwd</div>
 
 
 <div id="event-log"></div>
